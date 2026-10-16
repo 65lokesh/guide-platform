@@ -1,0 +1,147 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum GuideStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum ActivityAction {
+  VIEWED
+  SAVED
+  COMPLETED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+model User {
+  id             String         @id @default(cuid())
+  name           String
+  email          String         @unique
+  passwordHash   String
+  role           Role           @default(USER)
+  createdAt      DateTime       @default(now())
+
+  interests      UserInterest[]
+  chatSessions   ChatSession[]
+  activity       UserActivity[]
+  guidesAuthored Guide[]        @relation("GuideAuthor")
+
+  @@map("users")
+}
+
+model Category {
+  id            String     @id @default(cuid())
+  name          String
+  slug          String     @unique
+  description   String?
+  thumbnailUrl  String?
+  hoverVideoUrl String?
+  themeColor    String?
+  icon          String?
+
+  interests     Interest[]
+  guides        Guide[]
+
+  @@map("categories")
+}
+
+model Interest {
+  id         String         @id @default(cuid())
+  name       String
+  categoryId String
+  category   Category       @relation(fields: [categoryId], references: [id])
+
+  users      UserInterest[]
+
+  @@map("interests")
+}
+
+model UserInterest {
+  userId     String
+  interestId String
+
+  user       User     @relation(fields: [userId], references: [id])
+  interest   Interest @relation(fields: [interestId], references: [id])
+
+  @@id([userId, interestId])
+  @@map("user_interests")
+}
+
+model Guide {
+  id           String          @id @default(cuid())
+  categoryId   String
+  category     Category        @relation(fields: [categoryId], references: [id])
+  title        String
+  slug         String          @unique
+  content      Json
+  thumbnailUrl String?
+  authorId     String?
+  author       User?           @relation("GuideAuthor", fields: [authorId], references: [id])
+  status       GuideStatus     @default(DRAFT)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  embedding    GuideEmbedding?
+  activity     UserActivity[]
+
+  @@map("guides")
+}
+
+model GuideEmbedding {
+  guideId   String                 @id
+  guide     Guide                  @relation(fields: [guideId], references: [id])
+  embedding Unsupported("vector(768)")
+
+  @@map("guide_embeddings")
+}
+
+model ChatSession {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  createdAt DateTime      @default(now())
+
+  messages  ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id               String      @id @default(cuid())
+  sessionId        String
+  session          ChatSession @relation(fields: [sessionId], references: [id])
+  role             ChatRole
+  content          String
+  structuredOutput Json?
+  createdAt        DateTime    @default(now())
+
+  @@map("chat_messages")
+}
+
+model UserActivity {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id])
+  guideId   String
+  guide     Guide          @relation(fields: [guideId], references: [id])
+  action    ActivityAction
+  timestamp DateTime       @default(now())
+
+  @@map("user_activity")
+}
